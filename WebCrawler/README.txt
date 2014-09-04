@@ -1,1 +1,1 @@
-This is a simple web crawler, which starts from www.utah.edu and go through all urls in domain of "utah.edu" and download the pdf file has the content of "admission". It also avoids inaccessible urls and robot exclusion standard. 
+This is a simple web crawler, which starts from www.utah.edu, goes through all urls that have not been requested previously in domain of "utah.edu" and downloads pdf files with content of "admission". It also jumps inaccessible urls and avoids robot exclusion standard.
