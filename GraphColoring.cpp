@@ -1,10 +1,13 @@
 #include <map>
 #include <set>
+#include <unordered_set>
 #include <vector>
 #include <mpi.h>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <sstream>
+#include <time.h>
 using namespace std;
 
 #define MASTER 0 
@@ -13,6 +16,7 @@ map<int, set<int>> nodeNeighborsMap;
 int beginNode;
 int endNode;
 int* colorQueue;
+int* randoms;
 set<int> globalVertices;
 set<int> localVertices;
 set<int> coloredNodes;
@@ -25,6 +29,12 @@ set<int> receive_thread;
 
 int npes;
 int tmpThreadID;
+
+string Int2Str(int i){
+	ostringstream s;
+	s << i;
+	return s.str();
+}
 
 vector<string> StringSplit(string& s, const char* token){
 	char *cstr, *p, *next_p = NULL;
@@ -67,12 +77,8 @@ void GetNodeNeighborInfo(string fileName){
 			if(elements.at(0) == "e"){
 				int node1 = atoi((elements.at(1)).c_str());
 				int node2 = atoi((elements.at(2)).c_str());
-//				if(node1>=beginNode && node1 <=endNode){
-					InsertIntoPartitionedNodeNeighborMap(node1, node2);
-//				}
-//				if(node2>=beginNode && node2 <=endNode){
-					InsertIntoPartitionedNodeNeighborMap(node2, node1);
-//				}
+				InsertIntoPartitionedNodeNeighborMap(node1, node2);
+				InsertIntoPartitionedNodeNeighborMap(node2, node1);
 			}
 		}
 		file.clear();
@@ -196,11 +202,12 @@ void GetGlobalAndLocalVertices(){
 		bool isGlobal = false;
 		while(it!=tmpNeighbors.end()){
 			if(*it>endNode || *it<beginNode){
-				globalVertices.insert(globalVertices.end(), i);
+				globalVertices.insert(globalVertices.end(), i);				
 				isGlobal = true;
 				break;
 			}
 			it++;
+			
 		}
 		if(!isGlobal){
 			localVertices.insert(localVertices.end(), i);
@@ -215,7 +222,7 @@ void PackAndSend(set<int>* color_queue, int* tmpAllThreadsColorQueueSize, int* r
 	set<int>::iterator it = color_queue->begin();
 	int index = 0;
 	while(it!=color_queue->end()){
-		for(int i = 0; i<send_thread.size(); i++){
+		for(int i = 0; i<(int)send_thread.size(); i++){
 			sbuf[i*lengthPerThread + index] = *it;
 			sbuf[i*lengthPerThread + index + 1] = colorQueue[*it];
 		}
@@ -248,14 +255,14 @@ void PackAndSend(set<int>* color_queue, int* tmpAllThreadsColorQueueSize, int* r
 			rcounts[i] = 0;
 		}
 	}
-
-	rdispls = new int[npes];
+	
 	rdispls[0] = 0;
 	for(int i = 1; i<npes; i++){
 		rdispls[i] = rdispls[i-1] + rcounts[i-1];
 	}
 
-	rbuf = new int[rdispls[npes-1]+rcounts[npes-1]];
+
+	rbuf = (int*)realloc(rbuf, (rdispls[npes-1]+rcounts[npes-1])*sizeof(int));
 
 	MPI_Alltoallv(sbuf, scounts, sdispls, MPI_INT, rbuf, rcounts, rdispls, MPI_INT, MPI_COMM_WORLD);
 
@@ -278,11 +285,9 @@ int main(int argc, char** argv){
     MPI_Comm_rank(MPI_COMM_WORLD, &tmpThreadID);
     MPI_Comm_size(MPI_COMM_WORLD, &npes);
 
-	char* fileName;
-	if(tmpThreadID == MASTER){
-		fileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\input\\le450_5a.col";
-		totalNodeNum = GetNodeNum(fileName);
-	}
+//	char* fileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\input\\le450_5a.col";
+	char* fileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\input\\test.txt";
+	totalNodeNum = GetNodeNum(fileName);
 
 	int* sendbuf = (int*)malloc(npes*2*sizeof(int));
 	if(tmpThreadID == MASTER){
@@ -314,7 +319,39 @@ int main(int argc, char** argv){
 
 	beginNode = rbuf[0];
 	endNode = rbuf[1];
-	GetNodeNeighborInfo(fileName);
+	delete[] rbuf;
+	rbuf = NULL;
+
+	randoms = new int[totalNodeNum];
+	int* scounts = new int[npes];
+	int* displs = new int[npes];
+	int rcount = endNode-beginNode+1;
+	int* recvbuf = new int[rcount];
+	if(tmpThreadID == MASTER){
+		srand(time(NULL));
+		unordered_set<int> rands;
+		while(rands.size()<totalNodeNum){
+			int tmpRand = rand()%totalNodeNum;
+			rands.insert(rands.end(), tmpRand);
+		}
+		
+		unordered_set<int>::iterator uit = rands.begin();
+		int index = 0;
+		while(uit!=rands.end()){
+			randoms[index] = *uit;
+			uit++;
+			index++;
+		}
+		rands.clear();
+	}else{
+		for(int i = 0; i<totalNodeNum; i++){
+			randoms[i]=0;
+		}
+	}
+
+	MPI_Bcast(randoms, totalNodeNum, MPI_INT, MASTER, MPI_COMM_WORLD);
+	
+	GetNodeNeighborInfo(fileName);	
 
 	GetGlobalAndLocalVertices();
 
@@ -324,26 +361,30 @@ int main(int argc, char** argv){
 	}
 	
 	//color global vertices	
-	n_wait = (int*)malloc((globalVertices.size())*sizeof(int));
+	n_wait = new int[globalVertices.size()];
 	send_queue = new set<int>[globalVertices.size()];
 	receive_queue = new set<int>[globalVertices.size()];
 	set<int> color_queue;
-
-	set<int>::iterator git = globalVertices.begin();		
-	while(git!=globalVertices.end()){
+	set<int>::iterator git = globalVertices.begin();
+	
+	while(git != globalVertices.end()){
+		cout<<*git<<endl;
+		int gRandom = randoms[*git];
 		int index = *git-beginNode;
-		n_wait[index] = 0;		
+		n_wait[index] = 0;
+		
 		set<int> tmpNeighbors = nodeNeighborsMap.at(*git);
 		set<int>::iterator eit = tmpNeighbors.begin();
-		while(eit!=tmpNeighbors.end()){
+		while(eit != tmpNeighbors.end()){
 			int nodeNumMean = totalNodeNum/npes;
 			int threadID = *eit/nodeNumMean;
-			if(*eit>*git){
+			int tmpWeight = randoms[*eit];
+			if(tmpWeight > gRandom){
 				n_wait[index]++;
-				(receive_queue[index]).insert((receive_queue[index]).end(), *eit);
+				receive_queue[index].insert((receive_queue[index]).end(), *eit);
 				receive_thread.insert(receive_thread.end(), threadID);
 			}else{
-				send_queue[index].insert(send_queue[index].end(), *eit);				
+				send_queue[index].insert(send_queue[index].end(), *eit);		
 				send_thread.insert(send_thread.end(), threadID);
 			}
 			eit++;
@@ -354,17 +395,20 @@ int main(int argc, char** argv){
 		}
 
 		git++;
-	}
-	
+	}	
+
 	ColorVerticesSequentially(&color_queue);
+
 	int tmpColorQueueSize = color_queue.size();
 	int* tmpAllThreadsColorQueueSize = new int[npes];
 	MPI_Allgather(&tmpColorQueueSize, 1, MPI_INT, tmpAllThreadsColorQueueSize, 1, MPI_INT, MPI_COMM_WORLD);
+
 	//pack and send
-	int *buf, *rdispls;
+	int *buf = NULL;
+	int *rdispls = new int[npes];
 	PackAndSend(&color_queue, tmpAllThreadsColorQueueSize, buf, rdispls);
 	color_queue.clear();
-	if(coloredNodes.size() < globalVertices.size()){
+	while(coloredNodes.size() < globalVertices.size()){
 		for(int i = 0; i<npes; i++){
 			for(int j = rdispls[i]; j<rdispls[i+1];){
 				int tmpNode = buf[j];
@@ -374,7 +418,7 @@ int main(int argc, char** argv){
 				set<int> tmpNeighbors = nodeNeighborsMap.at(tmpNode);
 				set<int>::iterator it = tmpNeighbors.begin();
 				while(it != tmpNeighbors.end()){
-					if(globalVertices.find(*it)!=globalVertices.end()){
+					if(globalVertices.find(*it) != globalVertices.end()){					
 						int tmpIndex = *it-beginNode;
 						n_wait[tmpIndex]--;
 						if(n_wait[tmpIndex]==0){
@@ -386,14 +430,8 @@ int main(int argc, char** argv){
 				j+=2;
 			}
 		}
-
-		delete[] buf;
-		buf = NULL;
-		delete[] rdispls;
-		rdispls = NULL;
-
+		
 		ColorVerticesSequentially(&color_queue);
-		coloredNodes.insert(color_queue.begin(), color_queue.end());
 
 		tmpColorQueueSize = color_queue.size();
 		MPI_Allgather(&tmpColorQueueSize, 1, MPI_INT, tmpAllThreadsColorQueueSize, 1, MPI_INT, MPI_COMM_WORLD);
@@ -402,7 +440,38 @@ int main(int argc, char** argv){
 		color_queue.clear();
 	}
 
+	delete[] rdispls;
+	rdispls = NULL;
+	delete[] buf;
+	buf = NULL;
+	delete[] tmpAllThreadsColorQueueSize;
+	tmpAllThreadsColorQueueSize = NULL;
+	delete[] n_wait;
+	n_wait = NULL;
+	delete[] send_queue;
+	send_queue = NULL;
+	delete[] receive_queue;
+	receive_queue = NULL;
+
 	//color local vertices
 	ColorVerticesSequentially(&localVertices);
+
+	string rltFileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\output\\result_" + Int2Str(tmpThreadID) + ".txt";
+	ofstream outf;
+	outf.open(rltFileName);
+	if(!outf.is_open()){
+		cout<<"error in opening file "<<rltFileName<<endl;
+		return -1;
+	}
+
+	outf<<"nodeID\t color"<<endl;
+	for(int i = beginNode; i<=endNode; i++){
+		outf<<i<<"\t"<<colorQueue[i]<<endl;
+	}
+	outf.clear();
+	outf.close();
+
+	MPI_Finalize();
+
 	return 0;
 }
