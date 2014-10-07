@@ -314,7 +314,7 @@ int main(int argc, char** argv){
 //	char* fileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\input\\le450_5a.col";
 //	char* fileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\input\\test.txt";
 //	char* fileName = DATA_FILE_NAME;
-	char* fileName = argv[0];
+	char* fileName = argv[1];
 	totalNodeNum = GetNodeNum(fileName);
 //	cout<<"total node number is "<<totalNodeNum<<endl;
 
