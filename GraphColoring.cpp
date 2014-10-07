@@ -307,13 +307,14 @@ int main(int argc, char** argv){
 	
 	//initialize mpi
 	MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &tmpThreadID);
-    MPI_Comm_size(MPI_COMM_WORLD, &npes);
+        MPI_Comm_rank(MPI_COMM_WORLD, &tmpThreadID);
+        MPI_Comm_size(MPI_COMM_WORLD, &npes);
 
 	//get node number and partition it equally by the number of threads
 //	char* fileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\input\\le450_5a.col";
 //	char* fileName = "E:\\2014 Fall\\Big Data Computer System\\Assignment1\\GraphColoring\\GraphColoring\\input\\test.txt";
-	char* fileName = DATA_FILE_NAME;
+//	char* fileName = DATA_FILE_NAME;
+	char* fileName = argv[0];
 	totalNodeNum = GetNodeNum(fileName);
 //	cout<<"total node number is "<<totalNodeNum<<endl;
 
