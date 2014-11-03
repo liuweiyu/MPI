@@ -23,3 +23,6 @@ The code in this directory is to read two matrices, which will be multiplied, fr
 
 5.WriteMatrix
 This one has the opposite function as code 4. It is used to translate the result file in code 1 and 2's internal format into the binary format.
+
+6.TestResult
+This folder contains all test related files, including binary matrix files, text matrix files, result matrix in text format and result matrix in binary format.
