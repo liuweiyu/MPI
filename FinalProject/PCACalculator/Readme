@@ -1,0 +1,1 @@
+This folder includes partial code for final project. It mainly aims to compute correlation matrix from a data set. It contains the code for computing correlation matrix and also randomly generating testing data set. The other part for solving SVD is in my partner Hang Shao's repository.
