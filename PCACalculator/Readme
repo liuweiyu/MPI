@@ -1,0 +1,1 @@
+The code aims to compute correlation matrix and also randomly generating testing data set. It writes the resulted correlation matrix into a txt file.
